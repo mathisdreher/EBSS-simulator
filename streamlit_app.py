@@ -29,7 +29,8 @@ def main():
     st.header("Operational Parameters")
     availability = st.slider("Availability (%)", min_value=0, max_value=100, value=95)
     activation_rate = st.slider("Average aFRR Activation Rate (%)", min_value=0, max_value=100, value=15)
-    operational_life = st.number_input("Battery Operational Life (years)", min_value=1, value=15)
+    # Limit operational life to a maximum of 5 years
+    operational_life = st.number_input("Battery Operational Life (years, max 5)", min_value=1, max_value=5, value=5)
 
     # Financial Parameters
     st.header("Financial Parameters")
@@ -80,46 +81,62 @@ def main():
     usable_capacity = capacity * (1 - reserved_capacity_pct / 100)
     effective_power = min(power, usable_capacity * (efficiency / 100)) * (availability / 100)
     total_investment = capacity * battery_cost
-    years = np.arange(1, operational_life + 1)
+
+    # Prepare quarterly periods
+    total_quarters = operational_life * 4
+    quarters = np.arange(1, total_quarters + 1)
+    years = quarters / 4
+
     results = {}
 
     for scenario in scenarios:
         params = scenarios[scenario]
-        electricity_prices = params["initial_electricity_cost"] * ((1 + params["electricity_price_growth"] / 100) ** (years - 1))
-        afrr_capacity_prices = params["initial_afrr_capacity_price"] * ((1 + params["afrr_capacity_price_growth"] / 100) ** (years - 1))
-        afrr_activation_prices = params["initial_afrr_activation_price"] * ((1 + params["afrr_activation_price_growth"] / 100) ** (years - 1))
-        annual_capacity_revenues = effective_power * afrr_capacity_prices * 24 * 365
-        annual_energy_activated = effective_power * (activation_rate / 100) * 24 * 365
-        annual_activation_revenues = annual_energy_activated * afrr_activation_prices
-        annual_revenues = annual_capacity_revenues + annual_activation_revenues
-        annual_energy_charged = annual_energy_activated / (efficiency / 100)
-        annual_charging_costs = annual_energy_charged * electricity_prices
-        net_annual_revenues = annual_revenues - annual_charging_costs
-        cumulative_cash_flow = net_annual_revenues.cumsum() - total_investment
+
+        # Generate price trajectories on a quarterly basis
+        annual_electricity_prices = params["initial_electricity_cost"] * ((1 + params["electricity_price_growth"] / 100) ** (years - 1))
+        quarterly_electricity_prices = np.repeat(annual_electricity_prices / 4, 1)
+        
+        annual_afrr_capacity_prices = params["initial_afrr_capacity_price"] * ((1 + params["afrr_capacity_price_growth"] / 100) ** (years - 1))
+        quarterly_afrr_capacity_prices = np.repeat(annual_afrr_capacity_prices / 4, 1)
+        
+        annual_afrr_activation_prices = params["initial_afrr_activation_price"] * ((1 + params["afrr_activation_price_growth"] / 100) ** (years - 1))
+        quarterly_afrr_activation_prices = np.repeat(annual_afrr_activation_prices / 4, 1)
+
+        # Quarterly calculations
+        hours_per_quarter = 24 * 365 / 4
+        quarterly_capacity_revenues = effective_power * quarterly_afrr_capacity_prices * hours_per_quarter
+        quarterly_energy_activated = effective_power * (activation_rate / 100) * hours_per_quarter
+        quarterly_activation_revenues = quarterly_energy_activated * quarterly_afrr_activation_prices
+        quarterly_revenues = quarterly_capacity_revenues + quarterly_activation_revenues
+        quarterly_energy_charged = quarterly_energy_activated / (efficiency / 100)
+        quarterly_charging_costs = quarterly_energy_charged * quarterly_electricity_prices
+        net_quarterly_revenues = quarterly_revenues - quarterly_charging_costs
+        cumulative_cash_flow = net_quarterly_revenues.cumsum() - total_investment
 
         # Estimate payback period in months
         payback_period = None
         for i in range(len(cumulative_cash_flow)):
             if cumulative_cash_flow[i] >= 0:
                 if i == 0:
-                    # Payback in first year
-                    fraction = (total_investment) / net_annual_revenues[0]
-                    months = int(fraction * 12)
+                    # Payback in first quarter
+                    fraction = (total_investment) / net_quarterly_revenues[0]
+                    months = int(fraction * 3)
                     payback_period = months
                 else:
-                    # Interpolate between years
+                    # Interpolate between quarters
                     cash_flow_before = cumulative_cash_flow[i-1]
                     cash_flow_after = cumulative_cash_flow[i]
                     cash_needed = -cash_flow_before
-                    cash_generated_in_year = net_annual_revenues[i]
-                    fraction = cash_needed / cash_generated_in_year
-                    months = int((i) * 12 + fraction * 12)
+                    cash_generated_in_quarter = net_quarterly_revenues[i]
+                    fraction = cash_needed / cash_generated_in_quarter
+                    months = int((i) * 3 + fraction * 3)
                     payback_period = months
                 break
 
         df = pd.DataFrame({
+            'Quarter': quarters,
             'Year': years,
-            'Net Annual Revenue (€)': net_annual_revenues,
+            'Net Quarterly Revenue (€)': net_quarterly_revenues,
             'Cumulative Cash Flow (€)': cumulative_cash_flow
         })
         results[scenario] = {
@@ -171,9 +188,9 @@ def main():
     selected_scenario = st.selectbox("Select a scenario to view detailed projections", options=list(results.keys()))
     df = results[selected_scenario]['data']
     st.write(f"**Scenario:** {selected_scenario}")
-    # Remove the index and ensure 'Year' is the first column
+    # Remove the index and ensure 'Quarter' and 'Year' are the first columns
     df.reset_index(drop=True, inplace=True)
-    df = df[['Year', 'Net Annual Revenue (€)', 'Cumulative Cash Flow (€)']]
+    df = df[['Quarter', 'Year', 'Net Quarterly Revenue (€)', 'Cumulative Cash Flow (€)']]
     st.dataframe(df.style.format('{:,.2f}'))
 
     st.markdown("""
