@@ -1,110 +1,156 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import plotly.express as px
+import plotly.graph_objects as go
+from scipy import optimize
+import json
+import io
+
+# Set locale for currency formatting
+import locale
+locale.setlocale(locale.LC_ALL, '')
+
+# Function to calculate NPV
+def calculate_npv(rate, cash_flows):
+    return np.npv(rate, cash_flows)
+
+# Function to calculate IRR
+def calculate_irr(cash_flows):
+    return np.irr(cash_flows)
+
+# Cache function to optimize performance
+@st.cache(allow_output_mutation=True)
+def load_real_market_data():
+    # Placeholder function to simulate loading real market data
+    # Replace with actual API calls to fetch real data
+    # For demonstration, we'll use fixed data
+    data = {
+        'electricity_prices': pd.Series([50 + i*0.5 for i in range(15)]),
+        'afrr_capacity_prices': pd.Series([80 + i*0.3 for i in range(15)]),
+        'afrr_activation_prices': pd.Series([110 + i*0.4 for i in range(15)]),
+    }
+    return data
 
 def main():
     # Set page configuration
     st.set_page_config(page_title="Flexcity Battery Revenue Simulator", layout="wide")
 
-    # Flexcity Branding with Veolia Logo
-    st.image("https://upload.wikimedia.org/wikipedia/commons/4/48/Veolia_logo.svg", width=200)
+    # Load translations
+    with open('translations.json', 'r', encoding='utf-8') as f:
+        translations = json.load(f)
 
-    st.title("Estimate Your Battery Revenue with Flexcity in Belgium")
+    # Accessibility: Offer language selection (English, French, Dutch)
+    language_options = ["English", "Français", "Nederlands"]
+    language = st.sidebar.selectbox(translations["English"]["Select Language / Sélectionnez la langue / Selecteer Taal"], language_options)
 
-    st.markdown("""
-    Welcome to Flexcity's Battery Revenue Simulator. Discover how much revenue your battery can generate
-    by participating in the Belgian aFRR (Automatic Frequency Restoration Reserve) market with Flexcity.
+    # Translation dictionary for multi-language support
+    t = translations[language]
 
-    This tool allows you to explore different market scenarios, adjust assumptions, and see how partnering with Flexcity can maximize your investment.
-
-    """)
+    # Load real market data (Placeholder function)
+    real_market_data = load_real_market_data()
 
     # Use tabs for better UX
-    tabs = st.tabs(["Battery Specifications", "Operational Parameters", "Financial Parameters", "Market Scenarios", "Results"])
+    tabs = st.tabs([t["Battery Specifications"], t["Operational Parameters"], t["Financial Parameters"], t["Market Scenarios"], t["Results"]])
 
     with tabs[0]:
-        st.header("Battery Specifications")
+        st.header(t["Battery Specifications"])
 
         # Use columns to organize inputs
         col1, col2 = st.columns(2)
         with col1:
-            capacity = st.number_input("Battery Capacity (MWh)", min_value=0.1, value=2.0)
-            efficiency = st.slider("Round-trip Efficiency (%)", min_value=70, max_value=100, value=90)
+            capacity = st.number_input(t["Battery Capacity (MWh)"], min_value=0.1, value=2.0)
+            efficiency = st.slider(t["Round-trip Efficiency (%)"], min_value=70, max_value=100, value=90)
         with col2:
-            power = st.number_input("Battery Power Rating (MW)", min_value=0.1, value=1.0)
-            reserved_capacity_pct = st.slider("Reserved Capacity for Other Uses (%)", min_value=0, max_value=50, value=10)
+            power = st.number_input(t["Battery Power Rating (MW)"], min_value=0.1, value=1.0)
+            reserved_capacity_pct = st.slider(t["Reserved Capacity for Other Uses (%)"], min_value=0, max_value=50, value=10)
+
+        # Input validation
+        if capacity <= 0:
+            st.error(t["Error"] + ": " + t["Battery Capacity (MWh)"] + " > 0")
+            st.stop()
+        if power <= 0:
+            st.error(t["Error"] + ": " + t["Battery Power Rating (MW)"] + " > 0")
+            st.stop()
+        if efficiency <= 0 or efficiency > 100:
+            st.error(t["Error"] + ": " + t["Round-trip Efficiency (%)"] + " between 1 and 100")
+            st.stop()
 
     with tabs[1]:
-        st.header("Operational Parameters")
+        st.header(t["Operational Parameters"])
 
         col1, col2 = st.columns(2)
         with col1:
-            availability = st.slider("Availability (%)", min_value=0, max_value=100, value=95)
-            activation_rate = st.slider("Average aFRR Activation Rate (%)", min_value=0, max_value=100, value=15)
+            availability = st.slider(t["Availability (%)"], min_value=0, max_value=100, value=95)
+            activation_rate = st.slider(t["Average aFRR Activation Rate (%)"], min_value=0, max_value=100, value=15)
         with col2:
-            operational_life = st.number_input("Battery Operational Life (years)", min_value=1, value=15)
+            operational_life = st.number_input(t["Battery Operational Life (years)"], min_value=1, value=15)
             # Additional operational parameters can be added here
 
-    with tabs[2]:
-        st.header("Financial Parameters")
+        if availability < 0 or availability > 100:
+            st.error(t["Error"] + ": " + t["Availability (%)"] + " between 0 and 100")
+            st.stop()
+        if activation_rate < 0 or activation_rate > 100:
+            st.error(t["Error"] + ": " + t["Average aFRR Activation Rate (%)"] + " between 0 and 100")
+            st.stop()
 
-        battery_cost = st.number_input("Battery Investment Cost (€ per MWh)", min_value=0.0, value=350000.0)
+    with tabs[2]:
+        st.header(t["Financial Parameters"])
+
+        battery_cost = st.number_input(t["Battery Investment Cost (€ per MWh)"], min_value=0.0, value=350000.0)
         # Other financial parameters can be added here
 
     with tabs[3]:
-        st.header("Market Scenarios")
+        st.header(t["Market Scenarios"])
 
-        st.markdown("""
-        Select a predefined market scenario or create your own custom scenario by adjusting the parameters.
-        """)
+        st.markdown(t["Select predefined market scenarios or create your own custom scenario by adjusting the parameters."])
 
-        scenario_options = ["Custom", "Optimistic", "Base Case", "Pessimistic"]
-        selected_scenarios = st.multiselect("Select Scenarios to Display", options=scenario_options, default=["Base Case", "Custom"])
+        scenario_options = [t["Custom"], t["Optimistic"], t["Base Case"], t["Pessimistic"]]
+        selected_scenarios = st.multiselect(t["Select Scenarios to Display"], options=scenario_options, default=[t["Base Case"], t["Custom"]])
 
         scenarios = {}
         for scenario in selected_scenarios:
-            with st.expander(f"{scenario} Scenario Settings", expanded=(scenario=="Custom")):
-                st.write(f"Adjust the parameters for the {scenario} scenario.")
+            scenario_key = [key for key, value in t.items() if value == scenario][0]
+            with st.expander(f"{scenario} {t['Scenario']} {t['Settings']}", expanded=(scenario==t["Custom"])):
+                st.write(f"{t['Adjust the parameters for the']} {scenario.lower()} {t['scenario.']}")
 
-                if scenario == "Custom":
-                    initial_electricity_cost = st.number_input("Initial Electricity Cost (€/MWh)", min_value=0.0, value=50.0, key=f"{scenario}_electricity_cost")
-                    electricity_price_growth = st.number_input("Annual Electricity Price Growth (%)", value=2.0, key=f"{scenario}_electricity_growth")
-                    initial_afrr_capacity_price = st.number_input("Initial aFRR Capacity Price (€/MW/h)", min_value=0.0, value=80.0, key=f"{scenario}_afrr_capacity_price")
-                    afrr_capacity_price_growth = st.number_input("Annual aFRR Capacity Price Growth (%)", value=1.8, key=f"{scenario}_afrr_capacity_growth")
-                    initial_afrr_activation_price = st.number_input("Initial aFRR Activation Price (€/MWh)", min_value=0.0, value=110.0, key=f"{scenario}_afrr_activation_price")
-                    afrr_activation_price_growth = st.number_input("Annual aFRR Activation Price Growth (%)", value=2.2, key=f"{scenario}_afrr_activation_growth")
+                if scenario == t["Custom"]:
+                    initial_electricity_cost = st.number_input(t["Initial Electricity Cost (€/MWh)"], min_value=0.0, value=real_market_data['electricity_prices'][0], key=f"{scenario}_electricity_cost")
+                    electricity_price_growth = st.number_input(t["Annual Electricity Price Growth (%)"], value=2.0, key=f"{scenario}_electricity_growth")
+                    initial_afrr_capacity_price = st.number_input(t["Initial aFRR Capacity Price (€/MW/h)"], min_value=0.0, value=real_market_data['afrr_capacity_prices'][0], key=f"{scenario}_afrr_capacity_price")
+                    afrr_capacity_price_growth = st.number_input(t["Annual aFRR Capacity Price Growth (%)"], value=1.8, key=f"{scenario}_afrr_capacity_growth")
+                    initial_afrr_activation_price = st.number_input(t["Initial aFRR Activation Price (€/MWh)"], min_value=0.0, value=real_market_data['afrr_activation_prices'][0], key=f"{scenario}_afrr_activation_price")
+                    afrr_activation_price_growth = st.number_input(t["Annual aFRR Activation Price Growth (%)"], value=2.2, key=f"{scenario}_afrr_activation_growth")
                 else:
                     # Default scenario values
-                    if scenario == "Optimistic":
-                        initial_electricity_cost = 52.0
+                    if scenario == t["Optimistic"]:
+                        initial_electricity_cost = real_market_data['electricity_prices'][0] * 1.05
                         electricity_price_growth = 1.2
-                        initial_afrr_capacity_price = 85.0
+                        initial_afrr_capacity_price = real_market_data['afrr_capacity_prices'][0] * 1.05
                         afrr_capacity_price_growth = 2.5
-                        initial_afrr_activation_price = 115.0
+                        initial_afrr_activation_price = real_market_data['afrr_activation_prices'][0] * 1.05
                         afrr_activation_price_growth = 3.0
-                    elif scenario == "Base Case":
-                        initial_electricity_cost = 50.0
+                    elif scenario == t["Base Case"]:
+                        initial_electricity_cost = real_market_data['electricity_prices'][0]
                         electricity_price_growth = 1.8
-                        initial_afrr_capacity_price = 80.0
+                        initial_afrr_capacity_price = real_market_data['afrr_capacity_prices'][0]
                         afrr_capacity_price_growth = 1.8
-                        initial_afrr_activation_price = 110.0
+                        initial_afrr_activation_price = real_market_data['afrr_activation_prices'][0]
                         afrr_activation_price_growth = 2.2
-                    elif scenario == "Pessimistic":
-                        initial_electricity_cost = 48.0
+                    elif scenario == t["Pessimistic"]:
+                        initial_electricity_cost = real_market_data['electricity_prices'][0] * 0.95
                         electricity_price_growth = 2.5
-                        initial_afrr_capacity_price = 75.0
+                        initial_afrr_capacity_price = real_market_data['afrr_capacity_prices'][0] * 0.95
                         afrr_capacity_price_growth = 0.5
-                        initial_afrr_activation_price = 105.0
+                        initial_afrr_activation_price = real_market_data['afrr_activation_prices'][0] * 0.95
                         afrr_activation_price_growth = 1.0
 
                     # Allow user to modify default scenario parameters
-                    initial_electricity_cost = st.number_input("Initial Electricity Cost (€/MWh)", min_value=0.0, value=initial_electricity_cost, key=f"{scenario}_electricity_cost")
-                    electricity_price_growth = st.number_input("Annual Electricity Price Growth (%)", value=electricity_price_growth, key=f"{scenario}_electricity_growth")
-                    initial_afrr_capacity_price = st.number_input("Initial aFRR Capacity Price (€/MW/h)", min_value=0.0, value=initial_afrr_capacity_price, key=f"{scenario}_afrr_capacity_price")
-                    afrr_capacity_price_growth = st.number_input("Annual aFRR Capacity Price Growth (%)", value=afrr_capacity_price_growth, key=f"{scenario}_afrr_capacity_growth")
-                    initial_afrr_activation_price = st.number_input("Initial aFRR Activation Price (€/MWh)", min_value=0.0, value=initial_afrr_activation_price, key=f"{scenario}_afrr_activation_price")
-                    afrr_activation_price_growth = st.number_input("Annual aFRR Activation Price Growth (%)", value=afrr_activation_price_growth, key=f"{scenario}_afrr_activation_growth")
+                    initial_electricity_cost = st.number_input(t["Initial Electricity Cost (€/MWh)"], min_value=0.0, value=initial_electricity_cost, key=f"{scenario}_electricity_cost")
+                    electricity_price_growth = st.number_input(t["Annual Electricity Price Growth (%)"], value=electricity_price_growth, key=f"{scenario}_electricity_growth")
+                    initial_afrr_capacity_price = st.number_input(t["Initial aFRR Capacity Price (€/MW/h)"], min_value=0.0, value=initial_afrr_capacity_price, key=f"{scenario}_afrr_capacity_price")
+                    afrr_capacity_price_growth = st.number_input(t["Annual aFRR Capacity Price Growth (%)"], value=afrr_capacity_price_growth, key=f"{scenario}_afrr_capacity_growth")
+                    initial_afrr_activation_price = st.number_input(t["Initial aFRR Activation Price (€/MWh)"], min_value=0.0, value=initial_afrr_activation_price, key=f"{scenario}_afrr_activation_price")
+                    afrr_activation_price_growth = st.number_input(t["Annual aFRR Activation Price Growth (%)"], value=afrr_activation_price_growth, key=f"{scenario}_afrr_activation_growth")
 
                 # Store scenario parameters
                 scenarios[scenario] = {
@@ -117,7 +163,7 @@ def main():
                 }
 
     with tabs[4]:
-        st.header("Results")
+        st.header(t["Results"])
 
         # Calculations
 
@@ -154,9 +200,15 @@ def main():
             cumulative_cash_flow = net_annual_revenues.cumsum() - total_investment
             payback_period = next((year for year, cash in zip(years, cumulative_cash_flow) if cash >= 0), None)
 
+            # Financial Metrics
+            discount_rate = 0.05  # 5% discount rate
+            cash_flows = [-total_investment] + net_annual_revenues.tolist()
+            npv = calculate_npv(discount_rate, cash_flows)
+            irr = calculate_irr(cash_flows)
+
             # Store results
             df = pd.DataFrame({
-                'Year': years,
+                t['Year']: years,
                 'Electricity Price (€/MWh)': electricity_prices,
                 'aFRR Capacity Price (€/MW/h)': afrr_capacity_prices,
                 'aFRR Activation Price (€/MWh)': afrr_activation_prices,
@@ -169,44 +221,83 @@ def main():
 
             results[scenario] = {
                 'data': df,
-                'payback_period': payback_period
+                'payback_period': payback_period,
+                'npv': npv,
+                'irr': irr
             }
 
         # Display results
 
-        st.subheader("Cumulative Cash Flow Comparison")
+        st.subheader(t["Cumulative Cash Flow Comparison"])
 
         # Prepare data for plotting
-        fig = px.line()
+        fig = go.Figure()
 
         for scenario in results:
             df = results[scenario]['data']
-            fig.add_scatter(x=df['Year'], y=df['Cumulative Cash Flow (€)'], mode='lines+markers', name=scenario)
+            fig.add_trace(go.Scatter(
+                x=df[t['Year']],
+                y=df['Cumulative Cash Flow (€)'],
+                mode='lines+markers',
+                name=scenario
+            ))
 
-        fig.update_layout(title='Break-even Analysis for Different Scenarios',
-                          xaxis_title='Year',
-                          yaxis_title='Cumulative Cash Flow (€)')
+        fig.update_layout(title=t['Break-even Analysis for Different Scenarios'],
+                          xaxis_title=t['Year'],
+                          yaxis_title=t['Cumulative Cash Flow (€)'])
 
         st.plotly_chart(fig, use_container_width=True)
 
-        st.subheader("Payback Periods")
-        payback_df = pd.DataFrame({
-            'Scenario': [scenario for scenario in results],
-            'Payback Period (years)': [results[scenario]['payback_period'] if results[scenario]['payback_period'] else 'Not within operational life' for scenario in results]
-        })
+        st.subheader(t["Payback Periods"])
+        payback_data = {
+            t['Scenario']: [],
+            t['Payback Period (years)']: [],
+            t['NPV at 5% Discount Rate']: [],
+            t['IRR']: []
+        }
+        for scenario in results:
+            payback = results[scenario]['payback_period']
+            npv = results[scenario]['npv']
+            irr = results[scenario]['irr']
+            payback_text = f"{payback}" if payback else t['Not within operational life']
+            npv_text = f"€{npv:,.2f}"
+            irr_text = f"{irr * 100:.2f}%" if irr is not None else "N/A"
+            payback_data[t['Scenario']].append(scenario)
+            payback_data[t['Payback Period (years)']].append(payback_text)
+            payback_data[t['NPV at 5% Discount Rate']].append(npv_text)
+            payback_data[t['IRR']].append(irr_text)
 
+        payback_df = pd.DataFrame(payback_data)
         st.table(payback_df)
 
-        st.subheader("Detailed Financial Projections")
+        st.subheader(t["Detailed Financial Projections"])
 
-        selected_scenario = st.selectbox("Select a scenario to view detailed projections", options=list(results.keys()))
+        selected_scenario = st.selectbox(t["Select a scenario to view detailed projections"], options=list(results.keys()))
 
         df = results[selected_scenario]['data']
-        st.write(f"**Scenario:** {selected_scenario}")
+        st.write(f"**{t['Scenario']}:** {selected_scenario}")
         st.dataframe(df.style.format('{:,.2f}'))
 
-        st.markdown("""
-        ### Understanding the Business Case
+        # Data Export and Sharing
+        st.subheader(t["Data Export and Sharing"])
+        export_format = st.selectbox(t["Select export format"], ["CSV", "Excel"])
+        if export_format == "CSV":
+            # Export all scenarios
+            combined_df = pd.concat([results[scenario]['data'].assign(Scenario=scenario) for scenario in results])
+            csv = combined_df.to_csv(index=False).encode('utf-8')
+            st.download_button(label=t["Download CSV"], data=csv, file_name='all_scenarios_financial_projections.csv', mime='text/csv')
+        else:
+            combined_df = pd.concat([results[scenario]['data'].assign(Scenario=scenario) for scenario in results])
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                for scenario in results:
+                    results[scenario]['data'].to_excel(writer, sheet_name=scenario, index=False)
+                writer.save()
+                processed_data = output.getvalue()
+            st.download_button(label=t["Download Excel"], data=processed_data, file_name='all_scenarios_financial_projections.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+        st.markdown(f"""
+        ### {t["Understanding the Business Case"]}
 
         Investing in battery storage and participating in the aFRR market can provide significant revenue streams.
         By partnering with Flexcity, you can maximize your battery's potential through expert market access and optimized operations.
@@ -217,13 +308,23 @@ def main():
 
         The cumulative cash flow analysis helps you understand when you can expect to recover your initial investment under different market conditions.
 
-        ### Next Steps
+        ### {t["Next Steps"]}
 
         - **Customize Assumptions:** Adjust the parameters to reflect your expectations.
         - **Compare Scenarios:** Analyze how different market trends impact your investment.
-        - **Contact Flexcity:** [Get in touch](https://www.flexcity.energy/contact) for a personalized consultation and to learn how we can help you optimize your battery's performance.
+        - **{t["Contact Flexcity"]}:** [Get in touch](https://www.flexcity.energy/contact) for a personalized consultation and to learn how we can help you optimize your battery's performance.
 
         """)
+
+    # Accessibility and Localization: Provide an option to enlarge text
+    if st.sidebar.checkbox(t["Enlarge Text"]):
+        st.markdown("""
+        <style>
+        body {
+            font-size: 18px;
+        }
+        </style>
+        """, unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
