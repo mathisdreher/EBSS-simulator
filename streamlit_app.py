@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 
 def main():
     # Flexcity Branding (you can customize this with your logo and colors)
-    st.image("flexcity_logo.png", width=200)  # Replace with the path to Flexcity's logo
+    st.image("https://upload.wikimedia.org/wikipedia/commons/4/48/Veolia_logo.svg", width=200)  # Replace with the path to Flexcity's logo
     st.title("Estimate Your Battery Revenue with Flexcity in Belgium")
 
     st.markdown("""
