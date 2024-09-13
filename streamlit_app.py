@@ -28,66 +28,100 @@ def main():
     # Operational conditions
     availability = st.sidebar.slider("Availability (%)", min_value=0, max_value=100, value=95)
     activation_rate = st.sidebar.slider("Average aFRR Activation Rate (%)", min_value=0, max_value=100, value=10)
-    # Elia compliance parameters can be added here as needed
 
-    st.sidebar.header("Market Parameters")
-    # Market conditions specific to Belgium
-    afrr_capacity_price = st.sidebar.number_input("aFRR Capacity Price (€/MW/h)", min_value=0.0, value=75.0)
-    afrr_activation_price = st.sidebar.number_input("aFRR Activation Price (€/MWh)", min_value=0.0, value=100.0)
-    electricity_cost = st.sidebar.number_input("Average Electricity Cost (€/MWh)", min_value=0.0, value=50.0)
+    st.sidebar.header("Electricity Price Assumptions")
+    # Electricity price evolution
+    initial_electricity_cost = st.sidebar.number_input("Initial Electricity Cost (€/MWh)", min_value=0.0, value=50.0)
+    annual_electricity_price_change = st.sidebar.number_input("Annual Electricity Price Change (%)", min_value=-100.0, max_value=100.0, value=2.0)
 
-    # Calculations
+    st.sidebar.header("aFRR Price Assumptions")
+    # aFRR price evolution
+    initial_afrr_capacity_price = st.sidebar.number_input("Initial aFRR Capacity Price (€/MW/h)", min_value=0.0, value=75.0)
+    annual_afrr_capacity_price_change = st.sidebar.number_input("Annual aFRR Capacity Price Change (%)", min_value=-100.0, max_value=100.0, value=1.0)
+    initial_afrr_activation_price = st.sidebar.number_input("Initial aFRR Activation Price (€/MWh)", min_value=0.0, value=100.0)
+    annual_afrr_activation_price_change = st.sidebar.number_input("Annual aFRR Activation Price Change (%)", min_value=-100.0, max_value=100.0, value=1.5)
+
     # Adjust capacity for reserved percentage
     usable_capacity = capacity * (1 - reserved_capacity_pct / 100)
 
     # Effective power output considering efficiency and availability
     effective_power = min(power, usable_capacity * (efficiency / 100)) * (availability / 100)
 
-    # Annual capacity revenue (€/year)
-    annual_capacity_revenue = effective_power * afrr_capacity_price * 24 * 365
-
-    # Annual activation revenue (€/year)
-    # Assuming the battery is activated at the given activation rate
-    annual_energy_activated = effective_power * activation_rate / 100 * 24 * 365
-    annual_activation_revenue = annual_energy_activated * afrr_activation_price
-
-    # Total annual revenue
-    annual_revenue_with_flexcity = annual_capacity_revenue + annual_activation_revenue
-
-    # Charging cost for activated energy
-    annual_energy_charged = annual_energy_activated / (efficiency / 100)
-    annual_charging_cost = annual_energy_charged * electricity_cost
-
-    # Net annual revenue with Flexcity
-    net_annual_revenue_with_flexcity = annual_revenue_with_flexcity - annual_charging_cost
-
-    # Scenario without Flexcity (Assuming no participation in aFRR market)
-    net_annual_revenue_without_flexcity = 0  # No revenue without Flexcity services
-
-    # ROI Calculation
-    total_investment = capacity * battery_cost
-    annual_cash_flow = net_annual_revenue_with_flexcity
-    payback_period = total_investment / annual_cash_flow if annual_cash_flow > 0 else np.nan
-
-    # Prepare data for break-even analysis
+    # Initialize lists to store yearly data
     years = np.arange(1, operational_life + 1)
-    cumulative_cash_flow = (annual_cash_flow * years) - total_investment
+    annual_capacity_revenues = []
+    annual_activation_revenues = []
+    annual_charging_costs = []
+    net_annual_revenues = []
+    cumulative_cash_flow = []
+
+    total_investment = capacity * battery_cost
+    cumulative_cash = -total_investment  # Initial investment
+
+    # Calculate prices over the years
+    electricity_prices = initial_electricity_cost * ((1 + annual_electricity_price_change / 100) ** (years - 1))
+    afrr_capacity_prices = initial_afrr_capacity_price * ((1 + annual_afrr_capacity_price_change / 100) ** (years - 1))
+    afrr_activation_prices = initial_afrr_activation_price * ((1 + annual_afrr_activation_price_change / 100) ** (years - 1))
+
+    for i in range(operational_life):
+        # Annual capacity revenue
+        annual_capacity_revenue = effective_power * afrr_capacity_prices[i] * 24 * 365
+        # Annual activation revenue
+        annual_energy_activated = effective_power * (activation_rate / 100) * 24 * 365
+        annual_activation_revenue = annual_energy_activated * afrr_activation_prices[i]
+        # Total annual revenue
+        annual_revenue = annual_capacity_revenue + annual_activation_revenue
+        # Annual charging cost
+        annual_energy_charged = annual_energy_activated / (efficiency / 100)
+        annual_charging_cost = annual_energy_charged * electricity_prices[i]
+        # Net annual revenue
+        net_annual_revenue = annual_revenue - annual_charging_cost
+        # Update cumulative cash flow
+        cumulative_cash += net_annual_revenue
+
+        # Append to lists
+        annual_capacity_revenues.append(annual_capacity_revenue)
+        annual_activation_revenues.append(annual_activation_revenue)
+        annual_charging_costs.append(annual_charging_cost)
+        net_annual_revenues.append(net_annual_revenue)
+        cumulative_cash_flow.append(cumulative_cash)
+
+    # Calculate payback period
+    payback_period = None
+    for i, cash in enumerate(cumulative_cash_flow):
+        if cash >= 0:
+            payback_period = years[i]
+            break
+
+    # Prepare DataFrame for display
+    data = {
+        'Year': years,
+        'Electricity Price (€/MWh)': electricity_prices,
+        'aFRR Capacity Price (€/MW/h)': afrr_capacity_prices,
+        'aFRR Activation Price (€/MWh)': afrr_activation_prices,
+        'Annual Capacity Revenue (€)': annual_capacity_revenues,
+        'Annual Activation Revenue (€)': annual_activation_revenues,
+        'Annual Charging Cost (€)': annual_charging_costs,
+        'Net Annual Revenue (€)': net_annual_revenues,
+        'Cumulative Cash Flow (€)': cumulative_cash_flow
+    }
+    df = pd.DataFrame(data)
 
     # Display Results
-    st.subheader("Your Estimated Annual Revenue with Flexcity")
-    st.markdown(f"""
-    - **Effective Power Output:** {effective_power:.2f} MW
-    - **Annual Capacity Revenue:** €{annual_capacity_revenue:,.2f}
-    - **Annual Activation Revenue:** €{annual_activation_revenue:,.2f}
-    - **Annual Charging Cost:** €{annual_charging_cost:,.2f}
-    - **Net Annual Revenue:** €{net_annual_revenue_with_flexcity:,.2f}
-    """)
+    st.subheader("Your Estimated Revenues and Costs Over Operational Life")
+    st.dataframe(df.style.format({'Electricity Price (€/MWh)': '{:,.2f}',
+                                  'aFRR Capacity Price (€/MW/h)': '{:,.2f}',
+                                  'aFRR Activation Price (€/MWh)': '{:,.2f}',
+                                  'Annual Capacity Revenue (€)': '{:,.2f}',
+                                  'Annual Activation Revenue (€)': '{:,.2f}',
+                                  'Annual Charging Cost (€)': '{:,.2f}',
+                                  'Net Annual Revenue (€)': '{:,.2f}',
+                                  'Cumulative Cash Flow (€)': '{:,.2f}'}))
 
     st.subheader("ROI Analysis")
     st.markdown(f"""
     - **Total Investment Cost:** €{total_investment:,.2f}
-    - **Annual Cash Flow:** €{annual_cash_flow:,.2f}
-    - **Payback Period:** {payback_period:.2f} years
+    - **Payback Period:** {payback_period if payback_period else 'Not within operational life'} years
     """)
 
     # Break-even Analysis Graph
@@ -96,16 +130,10 @@ def main():
     ax.axhline(0, color='gray', linewidth=0.8)
     ax.set_xlabel('Years')
     ax.set_ylabel('Cumulative Cash Flow (€)')
-    ax.set_title('Break-even Analysis')
+    ax.set_title('Break-even Analysis with Price Evolution')
     ax.grid(True)
 
     st.pyplot(fig)
-
-    st.subheader("Comparison: With vs. Without Flexcity")
-    st.markdown(f"""
-    - **Net Annual Revenue with Flexcity:** €{net_annual_revenue_with_flexcity:,.2f}
-    - **Net Annual Revenue without Flexcity:** €{net_annual_revenue_without_flexcity:,.2f}
-    """)
 
     st.markdown("""
     ### Why Partner with Flexcity?
