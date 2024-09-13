@@ -3,12 +3,7 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 from scipy import optimize
-import json
 import io
-
-# Set locale for currency formatting
-import locale
-locale.setlocale(locale.LC_ALL, '')
 
 # Function to calculate NPV
 def calculate_npv(rate, cash_flows):
@@ -35,16 +30,220 @@ def main():
     # Set page configuration
     st.set_page_config(page_title="Flexcity Battery Revenue Simulator", layout="wide")
 
-    # Load translations
-    with open('translations.json', 'r', encoding='utf-8') as f:
-        translations = json.load(f)
+    # Embedded translations dictionary
+    translations = {
+        "English": {
+            "Select Language": "Select Language",
+            "Battery Specifications": "Battery Specifications",
+            "Battery Capacity (MWh)": "Battery Capacity (MWh)",
+            "Battery Power Rating (MW)": "Battery Power Rating (MW)",
+            "Round-trip Efficiency (%)": "Round-trip Efficiency (%)",
+            "Reserved Capacity for Other Uses (%)": "Reserved Capacity for Other Uses (%)",
+            "Operational Parameters": "Operational Parameters",
+            "Availability (%)": "Availability (%)",
+            "Average aFRR Activation Rate (%)": "Average aFRR Activation Rate (%)",
+            "Battery Operational Life (years)": "Battery Operational Life (years)",
+            "Financial Parameters": "Financial Parameters",
+            "Battery Investment Cost (€ per MWh)": "Battery Investment Cost (€ per MWh)",
+            "Market Scenarios": "Market Scenarios",
+            "Select Scenarios to Display": "Select Scenarios to Display",
+            "Results": "Results",
+            "Cumulative Cash Flow Comparison": "Cumulative Cash Flow Comparison",
+            "Payback Periods": "Payback Periods",
+            "Detailed Financial Projections": "Detailed Financial Projections",
+            "Understanding the Business Case": "Understanding the Business Case",
+            "Next Steps": "Next Steps",
+            "Contact Flexcity": "Contact Flexcity",
+            "Select a scenario to view detailed projections": "Select a scenario to view detailed projections",
+            "Total Investment Cost": "Total Investment Cost",
+            "Payback Period": "Payback Period",
+            "NPV at 5% Discount Rate": "NPV at 5% Discount Rate",
+            "IRR": "IRR",
+            "Years": "Years",
+            "Cumulative Cash Flow (€)": "Cumulative Cash Flow (€)",
+            "Break-even Analysis for Different Scenarios": "Break-even Analysis for Different Scenarios",
+            "Year": "Year",
+            "Scenario": "Scenario",
+            "Payback Period (years)": "Payback Period (years)",
+            "Not within operational life": "Not within operational life",
+            "Export Data": "Export Data",
+            "Download CSV": "Download CSV",
+            "Download Excel": "Download Excel",
+            "Advanced Data Visualization": "Advanced Data Visualization",
+            "Toggle Scenarios": "Toggle Scenarios",
+            "Data Export and Sharing": "Data Export and Sharing",
+            "Include NPV and IRR": "Include NPV and IRR",
+            "Initial Electricity Cost (€/MWh)": "Initial Electricity Cost (€/MWh)",
+            "Annual Electricity Price Growth (%)": "Annual Electricity Price Growth (%)",
+            "Initial aFRR Capacity Price (€/MW/h)": "Initial aFRR Capacity Price (€/MW/h)",
+            "Annual aFRR Capacity Price Growth (%)": "Annual aFRR Capacity Price Growth (%)",
+            "Initial aFRR Activation Price (€/MWh)": "Initial aFRR Activation Price (€/MWh)",
+            "Annual aFRR Activation Price Growth (%)": "Annual aFRR Activation Price Growth (%)",
+            "Adjust the parameters for the": "Adjust the parameters for the",
+            "scenario.": "scenario.",
+            "Custom": "Custom",
+            "Optimistic": "Optimistic",
+            "Base Case": "Base Case",
+            "Pessimistic": "Pessimistic",
+            "Select Language / Sélectionnez la langue / Selecteer Taal": "Select Language",
+            "Enlarge Text": "Enlarge Text",
+            "Error": "Error",
+            "Data Export": "Data Export",
+            "Select export format": "Select export format",
+            "Download": "Download",
+            "Excel": "Excel",
+            "Download CSV": "Download CSV",
+            "Download Excel": "Download Excel",
+            "Download All Scenarios CSV": "Download All Scenarios CSV",
+            "Download All Scenarios Excel": "Download All Scenarios Excel",
+            "Advanced Data Visualization": "Advanced Data Visualization",
+            "Toggle Scenarios": "Toggle Scenarios",
+            "Data Export and Sharing": "Data Export and Sharing",
+            "Include NPV and IRR": "Include NPV and IRR",
+        },
+        "Français": {
+            "Select Language": "Sélectionnez la langue",
+            "Battery Specifications": "Spécifications de la Batterie",
+            "Battery Capacity (MWh)": "Capacité de la Batterie (MWh)",
+            "Battery Power Rating (MW)": "Puissance de la Batterie (MW)",
+            "Round-trip Efficiency (%)": "Efficacité Aller-Retour (%)",
+            "Reserved Capacity for Other Uses (%)": "Capacité Réservée pour Autres Usages (%)",
+            "Operational Parameters": "Paramètres Opérationnels",
+            "Availability (%)": "Disponibilité (%)",
+            "Average aFRR Activation Rate (%)": "Taux d'Activation Moyen aFRR (%)",
+            "Battery Operational Life (years)": "Durée de Vie Opérationnelle de la Batterie (années)",
+            "Financial Parameters": "Paramètres Financiers",
+            "Battery Investment Cost (€ per MWh)": "Coût d'Investissement de la Batterie (€ par MWh)",
+            "Market Scenarios": "Scénarios de Marché",
+            "Select Scenarios to Display": "Sélectionnez les Scénarios à Afficher",
+            "Results": "Résultats",
+            "Cumulative Cash Flow Comparison": "Comparaison des Flux de Trésorerie Cumulés",
+            "Payback Periods": "Périodes de Remboursement",
+            "Detailed Financial Projections": "Projections Financières Détaillées",
+            "Understanding the Business Case": "Comprendre le Cas d'Affaires",
+            "Next Steps": "Prochaines Étapes",
+            "Contact Flexcity": "Contactez Flexcity",
+            "Select a scenario to view detailed projections": "Sélectionnez un scénario pour voir les projections détaillées",
+            "Total Investment Cost": "Coût Total de l'Investissement",
+            "Payback Period": "Période de Remboursement",
+            "NPV at 5% Discount Rate": "VAN au Taux d'Actualisation de 5%",
+            "IRR": "TRI",
+            "Years": "Années",
+            "Cumulative Cash Flow (€)": "Flux de Trésorerie Cumulé (€)",
+            "Break-even Analysis for Different Scenarios": "Analyse du Seuil de Rentabilité pour Différents Scénarios",
+            "Year": "Année",
+            "Scenario": "Scénario",
+            "Payback Period (years)": "Période de Remboursement (années)",
+            "Not within operational life": "Pas dans la durée de vie opérationnelle",
+            "Export Data": "Exporter les Données",
+            "Download CSV": "Télécharger CSV",
+            "Download Excel": "Télécharger Excel",
+            "Advanced Data Visualization": "Visualisation Avancée des Données",
+            "Toggle Scenarios": "Basculer les Scénarios",
+            "Data Export and Sharing": "Exportation et Partage des Données",
+            "Include NPV and IRR": "Inclure la VAN et le TRI",
+            "Initial Electricity Cost (€/MWh)": "Coût Initial de l'Électricité (€/MWh)",
+            "Annual Electricity Price Growth (%)": "Croissance Annuelle du Prix de l'Électricité (%)",
+            "Initial aFRR Capacity Price (€/MW/h)": "Prix Initial de la Capacité aFRR (€/MW/h)",
+            "Annual aFRR Capacity Price Growth (%)": "Croissance Annuelle du Prix de la Capacité aFRR (%)",
+            "Initial aFRR Activation Price (€/MWh)": "Prix Initial d'Activation aFRR (€/MWh)",
+            "Annual aFRR Activation Price Growth (%)": "Croissance Annuelle du Prix d'Activation aFRR (%)",
+            "Adjust the parameters for the": "Ajustez les paramètres pour le",
+            "scenario.": "scénario.",
+            "Custom": "Personnalisé",
+            "Optimistic": "Optimiste",
+            "Base Case": "Cas de Base",
+            "Pessimistic": "Pessimiste",
+            "Select Language / Sélectionnez la langue / Selecteer Taal": "Sélectionnez la langue",
+            "Enlarge Text": "Agrandir le Texte",
+            "Error": "Erreur",
+            "Data Export": "Exportation des Données",
+            "Select export format": "Sélectionnez le format d'exportation",
+            "Download": "Télécharger",
+            "Excel": "Excel",
+            "Download CSV": "Télécharger CSV",
+            "Download Excel": "Télécharger Excel",
+            "Download All Scenarios CSV": "Télécharger Tous les Scénarios CSV",
+            "Download All Scenarios Excel": "Télécharger Tous les Scénarios Excel",
+            "Advanced Data Visualization": "Visualisation Avancée des Données",
+            "Toggle Scenarios": "Basculer les Scénarios",
+            "Data Export and Sharing": "Exportation et Partage des Données",
+            "Include NPV and IRR": "Inclure la VAN et le TRI",
+        },
+        "Nederlands": {
+            "Select Language": "Selecteer Taal",
+            "Battery Specifications": "Batterijspecificaties",
+            "Battery Capacity (MWh)": "Batterijcapaciteit (MWh)",
+            "Battery Power Rating (MW)": "Batterijvermogen (MW)",
+            "Round-trip Efficiency (%)": "Efficiëntie (%)",
+            "Reserved Capacity for Other Uses (%)": "Gereserveerde Capaciteit voor Andere Toepassingen (%)",
+            "Operational Parameters": "Operationele Parameters",
+            "Availability (%)": "Beschikbaarheid (%)",
+            "Average aFRR Activation Rate (%)": "Gemiddelde aFRR Activatiegraad (%)",
+            "Battery Operational Life (years)": "Operationele Levensduur van de Batterij (jaren)",
+            "Financial Parameters": "Financiële Parameters",
+            "Battery Investment Cost (€ per MWh)": "Batterij Investering (€ per MWh)",
+            "Market Scenarios": "Marktscenario's",
+            "Select Scenarios to Display": "Selecteer Scenario's om Weer te Geven",
+            "Results": "Resultaten",
+            "Cumulative Cash Flow Comparison": "Vergelijking van Cumulatieve Kasstromen",
+            "Payback Periods": "Terugverdientijden",
+            "Detailed Financial Projections": "Gedetailleerde Financiële Projecties",
+            "Understanding the Business Case": "Inzicht in de Businesscase",
+            "Next Steps": "Volgende Stappen",
+            "Contact Flexcity": "Neem Contact op met Flexcity",
+            "Select a scenario to view detailed projections": "Selecteer een scenario om gedetailleerde projecties te bekijken",
+            "Total Investment Cost": "Totale Investeringskosten",
+            "Payback Period": "Terugverdientijd",
+            "NPV at 5% Discount Rate": "NPV bij 5% Disconteringsvoet",
+            "IRR": "IRR",
+            "Years": "Jaren",
+            "Cumulative Cash Flow (€)": "Cumulatieve Kasstroom (€)",
+            "Break-even Analysis for Different Scenarios": "Break-even Analyse voor Verschillende Scenario's",
+            "Year": "Jaar",
+            "Scenario": "Scenario",
+            "Payback Period (years)": "Terugverdientijd (jaren)",
+            "Not within operational life": "Niet binnen operationele levensduur",
+            "Export Data": "Gegevens Exporteren",
+            "Download CSV": "CSV Downloaden",
+            "Download Excel": "Excel Downloaden",
+            "Advanced Data Visualization": "Geavanceerde Datavisualisatie",
+            "Toggle Scenarios": "Scenario's Wisselen",
+            "Data Export and Sharing": "Gegevens Exporteren en Delen",
+            "Include NPV and IRR": "Inclusief NPV en IRR",
+            "Initial Electricity Cost (€/MWh)": "Initiële Elektriciteitskosten (€/MWh)",
+            "Annual Electricity Price Growth (%)": "Jaarlijkse Groei van Elektriciteitsprijs (%)",
+            "Initial aFRR Capacity Price (€/MW/h)": "Initiële aFRR Capaciteitsprijs (€/MW/h)",
+            "Annual aFRR Capacity Price Growth (%)": "Jaarlijkse Groei van aFRR Capaciteitsprijs (%)",
+            "Initial aFRR Activation Price (€/MWh)": "Initiële aFRR Activatieprijs (€/MWh)",
+            "Annual aFRR Activation Price Growth (%)": "Jaarlijkse Groei van aFRR Activatieprijs (%)",
+            "Adjust the parameters for the": "Pas de parameters aan voor het",
+            "scenario.": "scenario.",
+            "Custom": "Aangepast",
+            "Optimistic": "Optimistisch",
+            "Base Case": "Basisgeval",
+            "Pessimistic": "Pessimistisch",
+            "Select Language / Sélectionnez la langue / Selecteer Taal": "Selecteer Taal",
+            "Enlarge Text": "Vergroot Tekst",
+            "Error": "Fout",
+            "Data Export": "Gegevens Exporteren",
+            "Select export format": "Selecteer exportformaat",
+            "Download": "Downloaden",
+            "Excel": "Excel",
+            "Download CSV": "CSV Downloaden",
+            "Download Excel": "Excel Downloaden",
+            "Download All Scenarios CSV": "Download Alle Scenario's CSV",
+            "Download All Scenarios Excel": "Download Alle Scenario's Excel",
+            "Advanced Data Visualization": "Geavanceerde Datavisualisatie",
+            "Toggle Scenarios": "Scenario's Wisselen",
+            "Data Export and Sharing": "Gegevens Exporteren en Delen",
+            "Include NPV and IRR": "Inclusief NPV en IRR",
+        }
+    }
 
-    # Accessibility: Offer language selection (English, French, Dutch)
-    language_options = ["English", "Français", "Nederlands"]
-    language = st.sidebar.selectbox(translations["English"]["Select Language / Sélectionnez la langue / Selecteer Taal"], language_options)
-
-    # Translation dictionary for multi-language support
-    t = translations[language]
+    # Helper function for translation
+    def t(key):
+        return translations[language].get(key, key)
 
     # Load real market data (Placeholder function)
     real_market_data = load_real_market_data()
@@ -66,13 +265,13 @@ def main():
 
         # Input validation
         if capacity <= 0:
-            st.error(t["Error"] + ": " + t["Battery Capacity (MWh)"] + " > 0")
+            st.error(f"{t['Error']}: {t['Battery Capacity (MWh)']} > 0")
             st.stop()
         if power <= 0:
-            st.error(t["Error"] + ": " + t["Battery Power Rating (MW)"] + " > 0")
+            st.error(f"{t['Error']}: {t['Battery Power Rating (MW)']} > 0")
             st.stop()
         if efficiency <= 0 or efficiency > 100:
-            st.error(t["Error"] + ": " + t["Round-trip Efficiency (%)"] + " between 1 and 100")
+            st.error(f"{t['Error']}: {t['Round-trip Efficiency (%)']} between 1 and 100")
             st.stop()
 
     with tabs[1]:
@@ -87,10 +286,10 @@ def main():
             # Additional operational parameters can be added here
 
         if availability < 0 or availability > 100:
-            st.error(t["Error"] + ": " + t["Availability (%)"] + " between 0 and 100")
+            st.error(f"{t['Error']}: {t['Availability (%)']} between 0 and 100")
             st.stop()
         if activation_rate < 0 or activation_rate > 100:
-            st.error(t["Error"] + ": " + t["Average aFRR Activation Rate (%)"] + " between 0 and 100")
+            st.error(f"{t['Error']}: {t['Average aFRR Activation Rate (%)']} between 0 and 100")
             st.stop()
 
     with tabs[2]:
@@ -109,8 +308,7 @@ def main():
 
         scenarios = {}
         for scenario in selected_scenarios:
-            scenario_key = [key for key, value in t.items() if value == scenario][0]
-            with st.expander(f"{scenario} {t['Scenario']} {t['Settings']}", expanded=(scenario==t["Custom"])):
+            with st.expander(f"{scenario} {t['Scenario']} Settings", expanded=(scenario == t["Custom"])):
                 st.write(f"{t['Adjust the parameters for the']} {scenario.lower()} {t['scenario.']}")
 
                 if scenario == t["Custom"]:
@@ -203,7 +401,10 @@ def main():
             # Financial Metrics
             discount_rate = 0.05  # 5% discount rate
             cash_flows = [-total_investment] + net_annual_revenues.tolist()
-            npv = calculate_npv(discount_rate, cash_flows)
+            try:
+                npv = calculate_npv(discount_rate, cash_flows)
+            except:
+                npv = np.nan
             irr = calculate_irr(cash_flows)
 
             # Store results
@@ -260,7 +461,7 @@ def main():
             npv = results[scenario]['npv']
             irr = results[scenario]['irr']
             payback_text = f"{payback}" if payback else t['Not within operational life']
-            npv_text = f"€{npv:,.2f}"
+            npv_text = f"€{npv:,.2f}" if not npv is None else "N/A"
             irr_text = f"{irr * 100:.2f}%" if irr is not None else "N/A"
             payback_data[t['Scenario']].append(scenario)
             payback_data[t['Payback Period (years)']].append(payback_text)
@@ -285,8 +486,9 @@ def main():
             # Export all scenarios
             combined_df = pd.concat([results[scenario]['data'].assign(Scenario=scenario) for scenario in results])
             csv = combined_df.to_csv(index=False).encode('utf-8')
-            st.download_button(label=t["Download CSV"], data=csv, file_name='all_scenarios_financial_projections.csv', mime='text/csv')
+            st.download_button(label=t["Download All Scenarios CSV"], data=csv, file_name='all_scenarios_financial_projections.csv', mime='text/csv')
         else:
+            # Export all scenarios to Excel with separate sheets
             combined_df = pd.concat([results[scenario]['data'].assign(Scenario=scenario) for scenario in results])
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
@@ -294,7 +496,7 @@ def main():
                     results[scenario]['data'].to_excel(writer, sheet_name=scenario, index=False)
                 writer.save()
                 processed_data = output.getvalue()
-            st.download_button(label=t["Download Excel"], data=processed_data, file_name='all_scenarios_financial_projections.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+            st.download_button(label=t["Download All Scenarios Excel"], data=processed_data, file_name='all_scenarios_financial_projections.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
         st.markdown(f"""
         ### {t["Understanding the Business Case"]}
