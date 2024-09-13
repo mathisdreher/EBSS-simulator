@@ -28,169 +28,115 @@ def main():
     # Operational Parameters
     st.header("Operational Parameters")
     availability = st.slider("Availability (%)", min_value=0, max_value=100, value=95)
-    activation_rate = st.slider("Average aFRR Activation Rate (%)", min_value=0, max_value=100, value=15)
+    activation_rate = st.slider("Average aFRR Activation Rate (%)", min_value=0, max_value=20, value=15)
     # Limit operational life to a maximum of 5 years
-    operational_life = st.number_input("Battery Operational Life (years, max 5)", min_value=1, max_value=5, value=5)
+    operational_life_years = st.number_input("Battery Operational Life (years, max 5)", min_value=1, max_value=5, value=5)
+    operational_life_months = operational_life_years * 12
 
     # Financial Parameters
     st.header("Financial Parameters")
     battery_cost = st.number_input("Battery Investment Cost (€ per MWh)", min_value=0.0, value=350000.0)
 
-    # Market Scenarios
-    st.header("Market Scenarios")
-    st.write("The following scenarios are provided to help you assess different market conditions.")
+    # Market Scenario - Base Case by Default
+    st.header("Market Scenario")
+    st.write("Customize the market scenario by adjusting the parameters below.")
 
-    scenario_options = ["Optimistic", "Base Case", "Pessimistic"]
-    # Show all scenarios by default
-    selected_scenarios = scenario_options
+    # User-defined scenario parameters
+    initial_electricity_cost = st.number_input("Initial Electricity Cost (€/MWh)", min_value=0.0, value=50.0)
+    electricity_price_growth = st.number_input("Monthly Electricity Price Growth Rate (% per month)", value=0.15)
+    initial_afrr_capacity_price = st.number_input("aFRR Capacity Price (€/MW/h)", min_value=0.0, value=80.0)
+    afrr_capacity_price_growth = st.number_input("Monthly aFRR Capacity Price Growth Rate (% per month)", value=0.15)
+    afrr_activation_price = st.number_input("aFRR Activation Price (€/MWh)", min_value=0.0, value=110.0)
+    afrr_activation_price_growth = st.number_input("Monthly aFRR Activation Price Growth Rate (% per month)", value=0.18)
 
-    scenarios = {}
-    for scenario in selected_scenarios:
-        if scenario == "Optimistic":
-            initial_electricity_cost = 55.0
-            electricity_price_growth = 1.2
-            initial_afrr_capacity_price = 85.0
-            afrr_capacity_price_growth = 2.5
-            initial_afrr_activation_price = 115.0
-            afrr_activation_price_growth = 3.0
-        elif scenario == "Base Case":
-            initial_electricity_cost = 50.0
-            electricity_price_growth = 1.8
-            initial_afrr_capacity_price = 80.0
-            afrr_capacity_price_growth = 1.8
-            initial_afrr_activation_price = 110.0
-            afrr_activation_price_growth = 2.2
-        elif scenario == "Pessimistic":
-            initial_electricity_cost = 45.0
-            electricity_price_growth = 2.5
-            initial_afrr_capacity_price = 75.0
-            afrr_capacity_price_growth = 0.5
-            initial_afrr_activation_price = 105.0
-            afrr_activation_price_growth = 1.0
-
-        scenarios[scenario] = {
-            "initial_electricity_cost": initial_electricity_cost,
-            "electricity_price_growth": electricity_price_growth,
-            "initial_afrr_capacity_price": initial_afrr_capacity_price,
-            "afrr_capacity_price_growth": afrr_capacity_price_growth,
-            "initial_afrr_activation_price": initial_afrr_activation_price,
-            "afrr_activation_price_growth": afrr_activation_price_growth
-        }
+    scenario = "Base Case"
 
     # Calculations
     usable_capacity = capacity * (1 - reserved_capacity_pct / 100)
     effective_power = min(power, usable_capacity * (efficiency / 100)) * (availability / 100)
     total_investment = capacity * battery_cost
 
-    # Prepare quarterly periods
-    total_quarters = operational_life * 4
-    quarters = np.arange(1, total_quarters + 1)
-    years = quarters / 4
+    # Prepare monthly periods
+    total_months = int(operational_life_months)
+    months = np.arange(1, total_months + 1)
 
-    results = {}
+    # Generate price trajectories on a monthly basis
+    electricity_prices = initial_electricity_cost * ((1 + electricity_price_growth / 100) ** (months - 1))
+    afrr_capacity_prices = initial_afrr_capacity_price * ((1 + afrr_capacity_price_growth / 100) ** (months - 1))
+    afrr_activation_prices = afrr_activation_price * ((1 + afrr_activation_price_growth / 100) ** (months - 1))
 
-    for scenario in scenarios:
-        params = scenarios[scenario]
+    # Monthly calculations
+    hours_per_month = 24 * 365 / 12
+    monthly_capacity_revenues = effective_power * afrr_capacity_prices * hours_per_month
+    monthly_energy_activated = effective_power * (activation_rate / 100) * hours_per_month
+    monthly_activation_revenues = monthly_energy_activated * afrr_activation_prices
+    monthly_revenues = monthly_capacity_revenues + monthly_activation_revenues
+    monthly_energy_charged = monthly_energy_activated / (efficiency / 100)
+    monthly_charging_costs = monthly_energy_charged * electricity_prices
+    net_monthly_revenues = monthly_revenues - monthly_charging_costs
+    cumulative_cash_flow = net_monthly_revenues.cumsum() - total_investment
 
-        # Generate price trajectories on a quarterly basis
-        annual_electricity_prices = params["initial_electricity_cost"] * ((1 + params["electricity_price_growth"] / 100) ** (years - 1))
-        quarterly_electricity_prices = np.repeat(annual_electricity_prices / 4, 1)
-        
-        annual_afrr_capacity_prices = params["initial_afrr_capacity_price"] * ((1 + params["afrr_capacity_price_growth"] / 100) ** (years - 1))
-        quarterly_afrr_capacity_prices = np.repeat(annual_afrr_capacity_prices / 4, 1)
-        
-        annual_afrr_activation_prices = params["initial_afrr_activation_price"] * ((1 + params["afrr_activation_price_growth"] / 100) ** (years - 1))
-        quarterly_afrr_activation_prices = np.repeat(annual_afrr_activation_prices / 4, 1)
+    # Estimate payback period in months
+    payback_period = None
+    for i in range(len(cumulative_cash_flow)):
+        if cumulative_cash_flow[i] >= 0:
+            if i == 0:
+                # Payback in first month
+                fraction = (total_investment) / net_monthly_revenues[0]
+                months_needed = int(fraction)
+                payback_period = months_needed
+            else:
+                # Interpolate between months
+                cash_flow_before = cumulative_cash_flow[i-1]
+                cash_flow_after = cumulative_cash_flow[i]
+                cash_needed = -cash_flow_before
+                cash_generated_in_month = net_monthly_revenues[i]
+                fraction = cash_needed / cash_generated_in_month
+                months_needed = int(i + fraction)
+                payback_period = months_needed
+            break
 
-        # Quarterly calculations
-        hours_per_quarter = 24 * 365 / 4
-        quarterly_capacity_revenues = effective_power * quarterly_afrr_capacity_prices * hours_per_quarter
-        quarterly_energy_activated = effective_power * (activation_rate / 100) * hours_per_quarter
-        quarterly_activation_revenues = quarterly_energy_activated * quarterly_afrr_activation_prices
-        quarterly_revenues = quarterly_capacity_revenues + quarterly_activation_revenues
-        quarterly_energy_charged = quarterly_energy_activated / (efficiency / 100)
-        quarterly_charging_costs = quarterly_energy_charged * quarterly_electricity_prices
-        net_quarterly_revenues = quarterly_revenues - quarterly_charging_costs
-        cumulative_cash_flow = net_quarterly_revenues.cumsum() - total_investment
-
-        # Estimate payback period in months
-        payback_period = None
-        for i in range(len(cumulative_cash_flow)):
-            if cumulative_cash_flow[i] >= 0:
-                if i == 0:
-                    # Payback in first quarter
-                    fraction = (total_investment) / net_quarterly_revenues[0]
-                    months = int(fraction * 3)
-                    payback_period = months
-                else:
-                    # Interpolate between quarters
-                    cash_flow_before = cumulative_cash_flow[i-1]
-                    cash_flow_after = cumulative_cash_flow[i]
-                    cash_needed = -cash_flow_before
-                    cash_generated_in_quarter = net_quarterly_revenues[i]
-                    fraction = cash_needed / cash_generated_in_quarter
-                    months = int((i) * 3 + fraction * 3)
-                    payback_period = months
-                break
-
-        df = pd.DataFrame({
-            'Quarter': quarters,
-            'Year': years,
-            'Net Quarterly Revenue (€)': net_quarterly_revenues,
-            'Cumulative Cash Flow (€)': cumulative_cash_flow
-        })
-        results[scenario] = {
-            'data': df,
-            'payback_period': payback_period,
-        }
+    df = pd.DataFrame({
+        'Month': months,
+        'Electricity Price (€/MWh)': electricity_prices,
+        'aFRR Capacity Price (€/MW/h)': afrr_capacity_prices,
+        'aFRR Activation Price (€/MWh)': afrr_activation_prices,
+        'Monthly Capacity Revenue (€)': monthly_capacity_revenues,
+        'Monthly Activation Revenue (€)': monthly_activation_revenues,
+        'Monthly Charging Cost (€)': monthly_charging_costs,
+        'Net Monthly Revenue (€)': net_monthly_revenues,
+        'Cumulative Cash Flow (€)': cumulative_cash_flow
+    })
 
     # Display results
     st.header("Results")
-    st.subheader("Cumulative Cash Flow Comparison")
+    st.subheader("Cumulative Cash Flow")
     fig = go.Figure()
 
-    for scenario in results:
-        df = results[scenario]['data']
-        fig.add_trace(go.Scatter(
-            x=df['Year'],
-            y=df['Cumulative Cash Flow (€)'],
-            mode='lines+markers',
-            name=scenario
-        ))
+    fig.add_trace(go.Scatter(
+        x=df['Month'],
+        y=df['Cumulative Cash Flow (€)'],
+        mode='lines+markers',
+        name=scenario
+    ))
 
-        # Add payback period annotation
-        payback_months = results[scenario]['payback_period']
-        if payback_months is not None:
-            payback_year = payback_months / 12
-            fig.add_vline(x=payback_year, line_dash="dash", line_color=fig.data[-1].line.color)
-            fig.add_annotation(x=payback_year, y=0, text=f"{scenario} Payback: {payback_months} months", showarrow=True, arrowhead=1, yshift=10)
-
-    fig.update_layout(title='Break-even Analysis for Different Scenarios',
-                      xaxis_title='Year',
+    fig.update_layout(title='Cumulative Cash Flow Over Time',
+                      xaxis_title='Month',
                       yaxis_title='Cumulative Cash Flow (€)')
     st.plotly_chart(fig, use_container_width=True)
 
-    st.subheader("Payback Periods")
-    payback_data = {
-        'Scenario': [],
-        'Payback Period (months)': [],
-    }
-    for scenario in results:
-        payback = results[scenario]['payback_period']
-        payback_text = f"{payback} months" if payback else 'Not within operational life'
-        payback_data['Scenario'].append(scenario)
-        payback_data['Payback Period (months)'].append(payback_text)
-
-    payback_df = pd.DataFrame(payback_data)
-    st.table(payback_df)
+    st.subheader("Payback Period")
+    if payback_period is not None:
+        st.write(f"**Estimated Payback Period:** {payback_period} months")
+    else:
+        st.write("**Estimated Payback Period:** Not within operational life")
 
     st.subheader("Detailed Financial Projections")
-    selected_scenario = st.selectbox("Select a scenario to view detailed projections", options=list(results.keys()))
-    df = results[selected_scenario]['data']
-    st.write(f"**Scenario:** {selected_scenario}")
-    # Remove the index and ensure 'Quarter' and 'Year' are the first columns
+    # Remove the index and ensure 'Month' is the first column
     df.reset_index(drop=True, inplace=True)
-    df = df[['Quarter', 'Year', 'Net Quarterly Revenue (€)', 'Cumulative Cash Flow (€)']]
+    df = df[['Month', 'Electricity Price (€/MWh)', 'aFRR Capacity Price (€/MW/h)', 'aFRR Activation Price (€/MWh)',
+             'Monthly Capacity Revenue (€)', 'Monthly Activation Revenue (€)', 'Monthly Charging Cost (€)',
+             'Net Monthly Revenue (€)', 'Cumulative Cash Flow (€)']]
     st.dataframe(df.style.format('{:,.2f}'))
 
     st.markdown("""
@@ -203,12 +149,11 @@ def main():
     - **Activation Revenue:** Earnings from actual energy delivery during activations.
     - **Charging Costs:** Costs incurred from recharging the battery after activations.
 
-    The cumulative cash flow analysis helps you understand when you can expect to recover your initial investment under different market conditions.
+    The cumulative cash flow analysis helps you understand when you can expect to recover your initial investment under the defined market conditions.
 
     ### Next Steps
 
     - **Customize Assumptions:** Adjust the parameters to reflect your expectations.
-    - **Compare Scenarios:** Analyze how different market trends impact your investment.
     - **Contact Flexcity:** [Get in touch](https://www.flexcity.energy/contact) for a personalized consultation and to learn how we can help you optimize your battery's performance.
 
     """)
