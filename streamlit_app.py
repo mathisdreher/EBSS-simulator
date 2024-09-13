@@ -17,7 +17,7 @@ def main():
     st.header("Operational Parameters")
     availability = st.slider("Availability (%)", min_value=0, max_value=100, value=95)
     activation_rate = st.slider("Average aFRR Activation Rate (%)", min_value=0, max_value=100, value=15)
-    operational_life = st.number_input("Battery Operational Life (years)", min_value=1, value=15)
+    operational_life = st.number_input("Battery Operational Life (years)", min_value=1, value=5)
 
     # Financial Parameters
     st.header("Financial Parameters")
