@@ -1,10 +1,11 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
+import numpy as np
 
 def main():
-    # Flexcity Branding (you can customize this with your logo and colors)
-    st.image("https://upload.wikimedia.org/wikipedia/commons/4/48/Veolia_logo.svg", width=200)  # Replace with the path to Flexcity's logo
+    # Flexcity Branding with Veolia Logo
+    st.image("https://upload.wikimedia.org/wikipedia/commons/4/48/Veolia_logo.svg", width=200)
     st.title("Estimate Your Battery Revenue with Flexcity in Belgium")
 
     st.markdown("""
@@ -19,14 +20,20 @@ def main():
     efficiency = st.sidebar.slider("Round-trip Efficiency (%)", min_value=70, max_value=100, value=90)
     reserved_capacity_pct = st.sidebar.slider("Reserved Capacity for Other Uses (%)", min_value=0, max_value=50, value=10)
 
+    st.sidebar.header("Financial Parameters")
+    battery_cost = st.sidebar.number_input("Battery Investment Cost (€ per MWh)", min_value=0.0, value=400000.0)
+    operational_life = st.sidebar.number_input("Battery Operational Life (years)", min_value=1, value=10)
+
     st.sidebar.header("Operational Parameters")
     # Operational conditions
     availability = st.sidebar.slider("Availability (%)", min_value=0, max_value=100, value=95)
-    operational_days = st.sidebar.slider("Operational Days per Year", min_value=1, max_value=365, value=350)
+    activation_rate = st.sidebar.slider("Average aFRR Activation Rate (%)", min_value=0, max_value=100, value=10)
+    # Elia compliance parameters can be added here as needed
 
     st.sidebar.header("Market Parameters")
     # Market conditions specific to Belgium
-    afrr_price = st.sidebar.number_input("Average aFRR Price (€/MW/h)", min_value=0.0, value=75.0)
+    afrr_capacity_price = st.sidebar.number_input("aFRR Capacity Price (€/MW/h)", min_value=0.0, value=75.0)
+    afrr_activation_price = st.sidebar.number_input("aFRR Activation Price (€/MWh)", min_value=0.0, value=100.0)
     electricity_cost = st.sidebar.number_input("Average Electricity Cost (€/MWh)", min_value=0.0, value=50.0)
 
     # Calculations
@@ -36,57 +43,81 @@ def main():
     # Effective power output considering efficiency and availability
     effective_power = min(power, usable_capacity * (efficiency / 100)) * (availability / 100)
 
-    # Daily revenue from aFRR services
-    daily_revenue = effective_power * afrr_price * 24  # Assuming participation 24 hours a day
+    # Annual capacity revenue (€/year)
+    annual_capacity_revenue = effective_power * afrr_capacity_price * 24 * 365
 
-    # Annual estimations
-    annual_revenue = daily_revenue * operational_days
+    # Annual activation revenue (€/year)
+    # Assuming the battery is activated at the given activation rate
+    annual_energy_activated = effective_power * activation_rate / 100 * 24 * 365
+    annual_activation_revenue = annual_energy_activated * afrr_activation_price
 
-    # Cost to recharge the battery per day
-    daily_energy_used = effective_power * 24 / (efficiency / 100)
-    daily_charging_cost = daily_energy_used * electricity_cost
-    annual_charging_cost = daily_charging_cost * operational_days
+    # Total annual revenue
+    annual_revenue_with_flexcity = annual_capacity_revenue + annual_activation_revenue
 
-    # Net annual revenue
-    net_annual_revenue = annual_revenue - annual_charging_cost
+    # Charging cost for activated energy
+    annual_energy_charged = annual_energy_activated / (efficiency / 100)
+    annual_charging_cost = annual_energy_charged * electricity_cost
 
+    # Net annual revenue with Flexcity
+    net_annual_revenue_with_flexcity = annual_revenue_with_flexcity - annual_charging_cost
+
+    # Scenario without Flexcity (Assuming no participation in aFRR market)
+    net_annual_revenue_without_flexcity = 0  # No revenue without Flexcity services
+
+    # ROI Calculation
+    total_investment = capacity * battery_cost
+    annual_cash_flow = net_annual_revenue_with_flexcity
+    payback_period = total_investment / annual_cash_flow if annual_cash_flow > 0 else np.nan
+
+    # Prepare data for break-even analysis
+    years = np.arange(1, operational_life + 1)
+    cumulative_cash_flow = (annual_cash_flow * years) - total_investment
+
+    # Display Results
     st.subheader("Your Estimated Annual Revenue with Flexcity")
     st.markdown(f"""
     - **Effective Power Output:** {effective_power:.2f} MW
-    - **Annual Revenue from aFRR:** €{annual_revenue:,.2f}
+    - **Annual Capacity Revenue:** €{annual_capacity_revenue:,.2f}
+    - **Annual Activation Revenue:** €{annual_activation_revenue:,.2f}
     - **Annual Charging Cost:** €{annual_charging_cost:,.2f}
-    - **Net Annual Revenue:** €{net_annual_revenue:,.2f}
+    - **Net Annual Revenue:** €{net_annual_revenue_with_flexcity:,.2f}
     """)
 
-    # Visualization
-    labels = ['Net Revenue', 'Charging Cost']
-    sizes = [net_annual_revenue, annual_charging_cost]
-    colors = ['#4CAF50', '#FF5722']
+    st.subheader("ROI Analysis")
+    st.markdown(f"""
+    - **Total Investment Cost:** €{total_investment:,.2f}
+    - **Annual Cash Flow:** €{annual_cash_flow:,.2f}
+    - **Payback Period:** {payback_period:.2f} years
+    """)
 
-    fig1, ax1 = plt.subplots()
-    ax1.pie(sizes, labels=labels, colors=colors, autopct='%1.1f%%', startangle=90)
-    ax1.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
+    # Break-even Analysis Graph
+    fig, ax = plt.subplots()
+    ax.plot(years, cumulative_cash_flow, marker='o', linestyle='-')
+    ax.axhline(0, color='gray', linewidth=0.8)
+    ax.set_xlabel('Years')
+    ax.set_ylabel('Cumulative Cash Flow (€)')
+    ax.set_title('Break-even Analysis')
+    ax.grid(True)
 
-    st.pyplot(fig1)
+    st.pyplot(fig)
+
+    st.subheader("Comparison: With vs. Without Flexcity")
+    st.markdown(f"""
+    - **Net Annual Revenue with Flexcity:** €{net_annual_revenue_with_flexcity:,.2f}
+    - **Net Annual Revenue without Flexcity:** €{net_annual_revenue_without_flexcity:,.2f}
+    """)
 
     st.markdown("""
     ### Why Partner with Flexcity?
 
     - **Maximize Your Revenue:** Flexcity optimizes your battery operations to capture the highest possible revenue.
-    - **Expert Market Access:** With deep knowledge of the Belgian energy market, we navigate the complexities for you.
+    - **Expert Market Access:** With deep knowledge of the Belgian energy market and Elia's regulations, we navigate the complexities for you.
     - **End-to-End Support:** From installation to market participation, Flexcity provides comprehensive support.
 
     ### Get in Touch
 
     Interested in unlocking your battery's full potential? [Contact us](https://www.flexcity.energy/contact) for a personalized consultation.
     """)
-
-    # Optional: Include a contact form (requires additional setup)
-    # st.sidebar.header("Get a Detailed Report")
-    # email = st.sidebar.text_input("Your Email Address")
-    # if st.sidebar.button("Send Me a Detailed Report"):
-    #     # Code to send an email with detailed report
-    #     st.sidebar.success("Detailed report sent to your email!")
 
 if __name__ == "__main__":
     main()
