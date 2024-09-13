@@ -43,13 +43,18 @@ def main():
 
     # User-defined scenario parameters
     initial_electricity_cost = st.number_input("Initial Electricity Cost (€/MWh)", min_value=0.0, value=50.0)
-    electricity_price_growth = st.number_input("Monthly Electricity Price Growth Rate (% per month)", value=0.15)
+    electricity_price_growth_annual = st.number_input("Annual Electricity Price Growth Rate (% per year)", value=2.0)
     initial_afrr_capacity_price = st.number_input("aFRR Capacity Price (€/MW/h)", min_value=0.0, value=80.0)
-    afrr_capacity_price_growth = st.number_input("Monthly aFRR Capacity Price Growth Rate (% per month)", value=0.15)
+    afrr_capacity_price_growth_annual = st.number_input("Annual aFRR Capacity Price Growth Rate (% per year)", value=2.0)
     afrr_activation_price = st.number_input("aFRR Activation Price (€/MWh)", min_value=0.0, value=110.0)
-    afrr_activation_price_growth = st.number_input("Monthly aFRR Activation Price Growth Rate (% per month)", value=0.18)
+    afrr_activation_price_growth_annual = st.number_input("Annual aFRR Activation Price Growth Rate (% per year)", value=2.5)
 
     scenario = "Base Case"
+
+    # Convert annual growth rates to monthly growth rates
+    electricity_price_growth_monthly = (1 + electricity_price_growth_annual / 100) ** (1/12) - 1
+    afrr_capacity_price_growth_monthly = (1 + afrr_capacity_price_growth_annual / 100) ** (1/12) - 1
+    afrr_activation_price_growth_monthly = (1 + afrr_activation_price_growth_annual / 100) ** (1/12) - 1
 
     # Calculations
     usable_capacity = capacity * (1 - reserved_capacity_pct / 100)
@@ -61,9 +66,9 @@ def main():
     months = np.arange(1, total_months + 1)
 
     # Generate price trajectories on a monthly basis
-    electricity_prices = initial_electricity_cost * ((1 + electricity_price_growth / 100) ** (months - 1))
-    afrr_capacity_prices = initial_afrr_capacity_price * ((1 + afrr_capacity_price_growth / 100) ** (months - 1))
-    afrr_activation_prices = afrr_activation_price * ((1 + afrr_activation_price_growth / 100) ** (months - 1))
+    electricity_prices = initial_electricity_cost * ((1 + electricity_price_growth_monthly) ** (months - 1))
+    afrr_capacity_prices = initial_afrr_capacity_price * ((1 + afrr_capacity_price_growth_monthly) ** (months - 1))
+    afrr_activation_prices = afrr_activation_price * ((1 + afrr_activation_price_growth_monthly) ** (months - 1))
 
     # Monthly calculations
     hours_per_month = 24 * 365 / 12
