@@ -7,7 +7,7 @@ def main():
     st.set_page_config(page_title="Battery Revenue Simulator", layout="wide")
 
     # Add Veolia logo
-    st.image("https://upload.wikimedia.org/wikipedia/commons/4/48/Veolia_logo.svg", width=200)
+    st.image("https://media.licdn.com/dms/image/D4E0BAQHe7U206qkbKg/company-logo_200_200/0/1666876293298/flexcity_logo?e=2147483647&v=beta&t=usN6O5HLkaW5DJdHhV4AYrfoLd3wQYEhgmUyYxducsc", width=200)
 
     st.title("Estimate Your Battery Revenue with Flexcity in Belgium")
 
